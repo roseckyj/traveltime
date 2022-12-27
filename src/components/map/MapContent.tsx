@@ -61,7 +61,7 @@ export function MapContent(props: IMapContentProps) {
 
             return (
                 <Line
-                    key={`segment-${i}`}
+                    key={i}
                     from={[points[0][1], points[0][0]]}
                     to={[points[1][1], points[1][0]]}
                     strokeWidth={value * 0.006 * nonLinearScale}
@@ -80,7 +80,7 @@ export function MapContent(props: IMapContentProps) {
         return (
             <Marker
                 coordinates={[town.point[1], town.point[0]]}
-                key={town.id}
+                key={i}
                 onMouseOver={() => setHoverMarker(town.id)}
                 onMouseOut={() => setHoverMarker(null)}
                 onClick={() => (selectedMarker === town.id ? setSelectedMarker(null) : setSelectedMarker(town.id))}
@@ -93,13 +93,7 @@ export function MapContent(props: IMapContentProps) {
                     fill={color}
                 />
                 {label && (
-                    <text
-                        key={town.id + 'k'}
-                        textAnchor="middle"
-                        y={-markerSize - 0.5 * scale}
-                        fill="#fff"
-                        fontSize={scale * 1.2}
-                    >
+                    <text textAnchor="middle" y={-markerSize - 0.5 * scale} fill="#fff" fontSize={scale * 1.2}>
                         {town.name}
                     </text>
                 )}
@@ -110,34 +104,34 @@ export function MapContent(props: IMapContentProps) {
     // Render
     return (
         <>
-            {/* Render unselected paths */}
-            <g>{segmentsFiltered.map(renderSegment(palette.primary.darken(0.2).hex()))}</g>
+            <g data-reason={'Unselected paths'}>
+                {segmentsFiltered.map(renderSegment(palette.primary.darken(0.2).hex()))}
+            </g>
 
-            {/* Render unselected markers */}
-            <g>
+            <g data-reason={'Unselected markers'}>
                 {townsFiltered.map(
                     renderTown(selectedMarker ? palette.primary.lighten(0.5).desaturate(0.3).hex() : 'white', false),
                 )}
             </g>
 
-            {/* Render selected paths */}
-            <g>
+            <g data-reason={'Selected paths'}>
                 {selectedMarker &&
                     connections[selectedMarker] &&
                     idsToSegments(connections[selectedMarker].stations).map(renderSegment(palette.secondary.hex()))}
             </g>
 
-            {/* Render selected markers */}
-            <g>
+            <g data-reason={'Selected markers'}>
                 {selectedMarker &&
-                    connections[selectedMarker] &&
-                    idsToStations(connections[selectedMarker].stations)
-                        .filter((t) => townsFiltered.includes(t))
-                        .map(renderTown('white', true))}
+                    (connections[selectedMarker]
+                        ? idsToStations(connections[selectedMarker].stations)
+                              .filter((t) => townsFiltered.includes(t))
+                              .map(renderTown('white', true))
+                        : [towns[selectedMarker]].map(renderTown('white', true)))}
             </g>
 
-            {/* Render hover over marker */}
-            <g>{hoverMarker && [towns[hoverMarker]].map(renderTown('white', true))}</g>
+            <g data-reason={'Hover over marker'}>
+                {hoverMarker && [towns[hoverMarker]].map(renderTown('white', true))}
+            </g>
         </>
     );
 }
