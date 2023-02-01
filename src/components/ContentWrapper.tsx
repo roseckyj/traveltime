@@ -1,12 +1,10 @@
-import { Connection, Town } from '../../types';
-import { Await } from '../../utils/Await';
-import { MapContent } from './MapContent';
+import { Connection, Town } from '../types';
+import { Await } from '../utils/Await';
+import { Display } from './Display';
 
-interface IMapContentWrapperProps {
-    dragging: boolean;
-}
+interface IMapContentWrapperProps {}
 
-export function MapContentWrapper(props: IMapContentWrapperProps) {
+export function ContentWrapper(props: IMapContentWrapperProps) {
     return (
         <Await for={(async () => (await fetch(`/data/towns.json`)).json())()}>
             {(towns: { [key: number]: Town }) => (
@@ -20,14 +18,7 @@ export function MapContentWrapper(props: IMapContentWrapperProps) {
                             }
                         });
 
-                        return (
-                            <MapContent
-                                towns={towns}
-                                connections={connections}
-                                segments={conns}
-                                dragging={props.dragging}
-                            />
-                        );
+                        return <Display towns={towns} connections={connections} segments={conns} />;
                     }}
                 </Await>
             )}

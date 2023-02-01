@@ -1,7 +1,8 @@
 import React from 'react';
 import { ComposableMap, Geographies, Geography, Point, ZoomableGroup } from 'react-simple-maps';
 import { palette } from '../../styles/palette';
-import { MapContentWrapper } from './MapContentWrapper';
+import { Connection, Town } from '../../types';
+import { MapContent } from './MapContent';
 
 const geographyStyle = {
     default: { outline: 'none' },
@@ -9,7 +10,14 @@ const geographyStyle = {
     pressed: { outline: 'none' },
 };
 
-interface IMapRootProps {}
+interface IMapRootProps {
+    towns: { [key: number]: Town };
+    connections: { [key: number]: Connection };
+    segments: { [key: string]: number };
+    selectedMarker: number | null;
+    setSelectedMarker: (value: number | null) => void;
+    range: number;
+}
 
 export function MapRoot(props: IMapRootProps) {
     const [viewport, setViewport] = React.useState<Point | null>([window.innerWidth, window.innerHeight]);
@@ -43,8 +51,8 @@ export function MapRoot(props: IMapRootProps) {
                 zoom={10}
                 minZoom={1}
                 maxZoom={700}
-                onMoveStart={() => setDragging(true)}
                 onMoveEnd={() => setDragging(false)}
+                onMove={() => setDragging(true)}
             >
                 <Geographies
                     geography={'/data/geojson/world-countries-sans-antarctica.json'}
@@ -66,7 +74,7 @@ export function MapRoot(props: IMapRootProps) {
                         geographies.map((geo) => <Geography key={geo.rsmKey} geography={geo} style={geographyStyle} />)
                     }
                 </Geographies>
-                <MapContentWrapper dragging={dragging} />
+                <MapContent {...props} dragging={dragging} />
             </ZoomableGroup>
         </ComposableMap>
     );

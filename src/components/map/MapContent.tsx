@@ -3,6 +3,7 @@ import * as Maps from 'react-simple-maps';
 import { Line, Marker } from 'react-simple-maps';
 import { gradient, palette } from '../../styles/palette';
 import { Connection, Station, Town } from '../../types';
+import { formatMinutes } from '../../utils/formatMinutes';
 import { useMapUtils } from '../../utils/hooks/useMapUtils';
 import { byValue } from '../../utils/sortBy/byKey copy';
 import { byPopulation } from '../../utils/sortBy/byPopulation';
@@ -14,15 +15,19 @@ interface IMapContentProps {
     connections: { [key: number]: Connection };
     segments: { [key: string]: number };
     dragging: boolean;
+    range: number;
+    selectedMarker: number | null;
+    setSelectedMarker: (value: number | null) => void;
 }
 
 export function MapContent(props: IMapContentProps) {
     const { isLineOnScreen, isPointOnScreen } = useMapUtils();
     const { projection } = (Maps as any).useMapContext();
     const { k } = (Maps as any).useZoomPanContext();
-    const [selectedMarker, setSelectedMarker] = React.useState<number | null>(null);
     const [hoverMarker, setHoverMarker] = React.useState<number | null>(null);
-    const { towns, connections, segments, dragging } = props;
+    const { towns, connections, segments, range, selectedMarker, setSelectedMarker } = props;
+
+    const dragging = props.dragging; // Disable if good performance
 
     // Calculate scales
     const normalizedZoom = Math.max(k, 10);
@@ -30,7 +35,7 @@ export function MapContent(props: IMapContentProps) {
     const nonLinearScale = scale + Math.log(normalizedZoom) * 0.01;
     const maxPopulation = Object.values(towns).reduce((prev, curr) => Math.max(prev, curr.population.total), 0);
     const maxPopulationLog = Math.log2(maxPopulation);
-    const maxTime = Object.values(connections).reduce((prev, curr) => Math.max(prev, curr.time), 0);
+    const maxTime = range;
 
     // Filter towns
     const townsLOD = firstN(Object.values(towns), byPopulation(true, truthy(selectedMarker)), 10 * normalizedZoom);
@@ -38,7 +43,13 @@ export function MapContent(props: IMapContentProps) {
 
     // Filter segments
     const segmentsLOD = firstN(Object.entries(segments), byValue(true), 30 * normalizedZoom);
-    const segmentsFiltered = segmentsLOD.filter(([key, value], i) => {
+    const segmentsRange = segmentsLOD.filter(([key]) =>
+        key
+            .split('-')
+            .map((id) => connections[parseInt(id)].time)
+            .every((time) => time <= maxTime),
+    );
+    const segmentsFiltered = segmentsRange.filter(([key, value], i) => {
         const t = key.split('-').map((key) => towns[parseInt(key)]);
         return isLineOnScreen([t[0].point[1], t[0].point[0]], [t[1].point[1], t[1].point[0]]);
     });
@@ -87,6 +98,7 @@ export function MapContent(props: IMapContentProps) {
                             <linearGradient
                                 id={`grad_${key}${selected ? '_s' : ''}`}
                                 gradientUnits="userSpaceOnUse"
+                                spreadMethod="pad"
                                 x1={p1l * p2[0] + (1 - p1l) * p1[0]}
                                 y1={p1l * p2[1] + (1 - p1l) * p1[1]}
                                 x2={p2l * p2[0] + (1 - p2l) * p1[0]}
@@ -106,7 +118,9 @@ export function MapContent(props: IMapContentProps) {
                         strokeWidth={value * 0.006 * nonLinearScale}
                         strokeLinecap="round"
                         stroke={
-                            selected ? `url(#grad_${key}${selected ? '_s' : ''}` : palette.primary.darken(0.2).hex()
+                            selected
+                                ? `url(#grad_${key}${selected ? '_s' : ''}) ${palette.secondary.hex()}`
+                                : palette.primary.darken(0.2).hex()
                         }
                     />
                 </>
@@ -135,9 +149,31 @@ export function MapContent(props: IMapContentProps) {
                     fill={color}
                 />
                 {label && (
-                    <text textAnchor="middle" y={-markerSize - 0.5 * scale} fill="#fff" fontSize={scale * 1.2}>
-                        {town.name}
-                    </text>
+                    <>
+                        <text
+                            textAnchor="middle"
+                            y={-markerSize - 2.5 * scale}
+                            fill="#fff"
+                            fontSize={scale * 1.2}
+                            fontWeight="bold"
+                            style={{
+                                textShadow: '0px 0px 5px rgba(0,0,0,0.7)',
+                            }}
+                        >
+                            {town.name}
+                        </text>
+                        <text
+                            textAnchor="middle"
+                            y={-markerSize - 1 * scale}
+                            fill="#fff"
+                            fontSize={scale * 1.2}
+                            style={{
+                                textShadow: '0px 0px 5px rgba(0,0,0,0.7)',
+                            }}
+                        >
+                            {formatMinutes(connections[town.id].time)}
+                        </text>
+                    </>
                 )}
             </Marker>
         );

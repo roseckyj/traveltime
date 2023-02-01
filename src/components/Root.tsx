@@ -1,5 +1,5 @@
-import { MapRoot } from './map/MapRoot';
+import { ContentWrapper } from './ContentWrapper';
 
 export function Root() {
-    return <MapRoot />;
+    return <ContentWrapper />;
 }
