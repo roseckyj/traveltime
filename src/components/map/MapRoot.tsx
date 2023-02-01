@@ -13,6 +13,7 @@ interface IMapRootProps {}
 
 export function MapRoot(props: IMapRootProps) {
     const [viewport, setViewport] = React.useState<Point | null>([window.innerWidth, window.innerHeight]);
+    const [dragging, setDragging] = React.useState<boolean>(false);
 
     React.useEffect(() => {
         const listener = () => {
@@ -37,7 +38,14 @@ export function MapRoot(props: IMapRootProps) {
             }}
             projectionConfig={{ scale: 1000 }}
         >
-            <ZoomableGroup center={[15.625233, 49.8022514]} zoom={10} minZoom={1} maxZoom={700}>
+            <ZoomableGroup
+                center={[15.625233, 49.8022514]}
+                zoom={10}
+                minZoom={1}
+                maxZoom={700}
+                onMoveStart={() => setDragging(true)}
+                onMoveEnd={() => setDragging(false)}
+            >
                 <Geographies
                     geography={'/data/geojson/world-countries-sans-antarctica.json'}
                     fill={palette.primary.lighten(1.6).hex()}
@@ -58,7 +66,7 @@ export function MapRoot(props: IMapRootProps) {
                         geographies.map((geo) => <Geography key={geo.rsmKey} geography={geo} style={geographyStyle} />)
                     }
                 </Geographies>
-                <MapContentWrapper />
+                <MapContentWrapper dragging={dragging} />
             </ZoomableGroup>
         </ComposableMap>
     );

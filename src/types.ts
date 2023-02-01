@@ -21,5 +21,11 @@ export interface Population {
 
 export interface Connection {
     time: number;
-    stations: number[];
+    stations: Station[];
+}
+
+export interface Station {
+    id: number;
+    arr: number;
+    dep: number;
 }

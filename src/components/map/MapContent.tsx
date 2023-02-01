@@ -1,8 +1,8 @@
 import React from 'react';
 import * as Maps from 'react-simple-maps';
 import { Line, Marker } from 'react-simple-maps';
-import { palette } from '../../styles/palette';
-import { Connection, Town } from '../../types';
+import { gradient, palette } from '../../styles/palette';
+import { Connection, Station, Town } from '../../types';
 import { useMapUtils } from '../../utils/hooks/useMapUtils';
 import { byValue } from '../../utils/sortBy/byKey copy';
 import { byPopulation } from '../../utils/sortBy/byPopulation';
@@ -13,14 +13,16 @@ interface IMapContentProps {
     towns: { [key: number]: Town };
     connections: { [key: number]: Connection };
     segments: { [key: string]: number };
+    dragging: boolean;
 }
 
 export function MapContent(props: IMapContentProps) {
     const { isLineOnScreen, isPointOnScreen } = useMapUtils();
+    const { projection } = (Maps as any).useMapContext();
     const { k } = (Maps as any).useZoomPanContext();
     const [selectedMarker, setSelectedMarker] = React.useState<number | null>(null);
     const [hoverMarker, setHoverMarker] = React.useState<number | null>(null);
-    const { towns, connections, segments } = props;
+    const { towns, connections, segments, dragging } = props;
 
     // Calculate scales
     const normalizedZoom = Math.max(k, 10);
@@ -28,6 +30,7 @@ export function MapContent(props: IMapContentProps) {
     const nonLinearScale = scale + Math.log(normalizedZoom) * 0.01;
     const maxPopulation = Object.values(towns).reduce((prev, curr) => Math.max(prev, curr.population.total), 0);
     const maxPopulationLog = Math.log2(maxPopulation);
+    const maxTime = Object.values(connections).reduce((prev, curr) => Math.max(prev, curr.time), 0);
 
     // Filter towns
     const townsLOD = firstN(Object.values(towns), byPopulation(true, truthy(selectedMarker)), 10 * normalizedZoom);
@@ -41,10 +44,10 @@ export function MapContent(props: IMapContentProps) {
     });
 
     // Functions
-    const idsToSegments = (ids: number[]) => {
+    const stationsToSegments = (station: Station[]) => {
         const result: [string, number][] = [];
-        for (let i = 0; i < ids.length - 1; i++) {
-            const key = `${ids[i]}-${ids[i + 1]}`;
+        for (let i = 0; i < station.length - 1; i++) {
+            const key = `${station[i].id}-${station[i + 1].id}`;
             result.push([key, segments[key]] as [string, number]);
         }
         return result;
@@ -55,19 +58,58 @@ export function MapContent(props: IMapContentProps) {
     };
 
     const renderSegment =
-        (color: string) =>
+        (selected: boolean) =>
         ([key, value]: [string, number], i: number) => {
-            const points = key.split('-').map((id) => towns[parseInt(id)].point);
+            const cityIds = key.split('-').map((id) => parseInt(id));
+            let points = cityIds.map((id) => towns[id].point);
+            const conns = cityIds.map((id) => connections[id]);
+            if (!(conns[0] && conns[1])) return;
+            let time = conns.map((conn) => conn.time / maxTime);
+            let diff = time[1] - time[0];
+
+            if (diff < 0) {
+                points = [points[1], points[0]];
+                time = [time[1], time[0]];
+                diff = -diff;
+            }
+
+            const p1 = projection([points[0][1], points[0][0]]);
+            const p2 = projection([points[1][1], points[1][0]]);
+
+            const p1l = 0 - time[0] / diff;
+            const p2l = 1 + (1 - time[1]) / diff;
 
             return (
-                <Line
-                    key={i}
-                    from={[points[0][1], points[0][0]]}
-                    to={[points[1][1], points[1][0]]}
-                    strokeWidth={value * 0.006 * nonLinearScale}
-                    strokeLinecap="round"
-                    stroke={color}
-                />
+                <>
+                    {' '}
+                    {selected && (
+                        <defs key={i + '_defs'}>
+                            <linearGradient
+                                id={`grad_${key}${selected ? '_s' : ''}`}
+                                gradientUnits="userSpaceOnUse"
+                                x1={p1l * p2[0] + (1 - p1l) * p1[0]}
+                                y1={p1l * p2[1] + (1 - p1l) * p1[1]}
+                                x2={p2l * p2[0] + (1 - p2l) * p1[0]}
+                                y2={p2l * p2[1] + (1 - p2l) * p1[1]}
+                            >
+                                (1-p2l) *
+                                {Object.entries(gradient).map(([stop, color], i) => (
+                                    <stop stop-color={color} offset={stop} key={i} />
+                                ))}
+                            </linearGradient>
+                        </defs>
+                    )}
+                    <Line
+                        key={i}
+                        from={[points[0][1], points[0][0]]}
+                        to={[points[1][1], points[1][0]]}
+                        strokeWidth={value * 0.006 * nonLinearScale}
+                        strokeLinecap="round"
+                        stroke={
+                            selected ? `url(#grad_${key}${selected ? '_s' : ''}` : palette.primary.darken(0.2).hex()
+                        }
+                    />
+                </>
             );
         };
 
@@ -104,9 +146,7 @@ export function MapContent(props: IMapContentProps) {
     // Render
     return (
         <>
-            <g data-reason={'Unselected paths'}>
-                {segmentsFiltered.map(renderSegment(palette.primary.darken(0.2).hex()))}
-            </g>
+            <g data-reason={'Unselected paths'}>{!dragging && segmentsFiltered.map(renderSegment(!selectedMarker))}</g>
 
             <g data-reason={'Unselected markers'}>
                 {townsFiltered.map(
@@ -115,15 +155,16 @@ export function MapContent(props: IMapContentProps) {
             </g>
 
             <g data-reason={'Selected paths'}>
-                {selectedMarker &&
+                {!dragging &&
+                    selectedMarker &&
                     connections[selectedMarker] &&
-                    idsToSegments(connections[selectedMarker].stations).map(renderSegment(palette.secondary.hex()))}
+                    stationsToSegments(connections[selectedMarker].stations).map(renderSegment(true))}
             </g>
 
             <g data-reason={'Selected markers'}>
                 {selectedMarker &&
                     (connections[selectedMarker]
-                        ? idsToStations(connections[selectedMarker].stations)
+                        ? idsToStations(connections[selectedMarker].stations.map((station) => station.id))
                               .filter((t) => townsFiltered.includes(t))
                               .map(renderTown('white', true))
                         : [towns[selectedMarker]].map(renderTown('white', true)))}
